@@ -6,7 +6,7 @@
 
 📁 文件路径约定：
 - 输入文件：data/inputs/<音频文件>
-- 输出文件：data/outputs/<结果文件>（如需要）
+- 一次只处理一个音频文件
 
 🎤 支持的音频格式：
 - WAV（推荐 16KHz 采样率）
@@ -35,15 +35,16 @@ DATA_OUTPUTS = Path("data/outputs")
 ASR_API_URL = os.environ.get("ASR_API_URL", "http://192.168.1.218:50000/api/v1/asr")
 
 
-def audio_to_text(lang: str = "auto", keys: str = "") -> dict:
+def audio_to_text(lang: str = "auto") -> dict:
     """
     将音频文件转换为文字（ASR - 自动语音识别）
 
     此函数调用 ASR 服务，将输入的音频文件转换为文本。
     支持多种语言和音频格式（wav/mp3，推荐 16KHz 采样率）。
+    一次只处理一个音频文件。
 
     📁 v3.0 文件约定：
-    - 输入：自动扫描 data/inputs/ 目录下的所有音频文件
+    - 输入：自动扫描 data/inputs/ 目录，处理第一个音频文件
     - Gateway 已将用户上传的文件下载到该目录
 
     🎤 支持的音频格式：
@@ -61,54 +62,53 @@ def audio_to_text(lang: str = "auto", keys: str = "") -> dict:
 
     Args:
         lang: 音频内容的语言，默认为 "auto" 自动检测
-        keys: 每个音频文件的名称，用逗号连接（可选，如果为空则使用文件名）
 
     Returns:
         包含转录结果的字典，格式：
+        成功时：
         {
-            "success": True/False,
-            "results": [
-                {
-                    "filename": "audio1.wav",
-                    "text": "转录的文本内容",
-                    "language": "zh"
-                },
-                ...
-            ],
-            "total_files": 整数,
-            "error": "错误信息（失败时）",
-            "error_code": "错误代码（失败时）"
+            "text": "转录的文本内容",
+            "filename": "audio.wav",
+            "language": "zh",
+            "raw_text": "原始文本（包含标记）",
+            "clean_text": "清理后的文本"
+        }
+
+        失败时：
+        {
+            "error": {
+                "message": "错误信息",
+                "code": "ERROR_CODE"
+            }
         }
 
     Examples:
         >>> # 自动检测语言
         >>> audio_to_text()
-        {"success": True, "results": [...], "total_files": 1}
+        {"text": "...", "filename": "test.wav", "language": "auto"}
 
         >>> # 指定中文
         >>> audio_to_text(lang="zh")
-        {"success": True, "results": [...], "total_files": 1}
-
-        >>> # 指定文件名
-        >>> audio_to_text(lang="auto", keys="recording1,recording2")
-        {"success": True, "results": [...], "total_files": 2}
+        {"text": "...", "filename": "test.wav", "language": "zh"}
     """
     try:
         # 1. 验证语言参数
         valid_languages = ["auto", "zh", "en", "yue", "ja", "ko", "nospeech"]
         if lang not in valid_languages:
             return {
-                "success": False,
-                "error": f"不支持的语言: {lang}。支持的语言: {', '.join(valid_languages)}",
-                "error_code": "INVALID_LANGUAGE"
+                "error": {
+                    "message": f"不支持的语言: {lang}。支持的语言: {', '.join(valid_languages)}",
+                    "code": "INVALID_LANGUAGE"
+                }
             }
 
-        # 2. 扫描输入目录，获取所有音频文件
+        # 2. 扫描输入目录，获取第一个音频文件
         if not DATA_INPUTS.exists():
             return {
-                "success": False,
-                "error": "输入目录不存在",
-                "error_code": "NO_INPUT_DIR"
+                "error": {
+                    "message": "输入目录不存在",
+                    "code": "NO_INPUT_DIR"
+                }
             }
 
         # 支持的音频文件扩展名
@@ -120,40 +120,26 @@ def audio_to_text(lang: str = "auto", keys: str = "") -> dict:
 
         if not audio_files:
             return {
-                "success": False,
-                "error": "未找到音频文件（支持 .wav 和 .mp3 格式）",
-                "error_code": "NO_AUDIO_FILES"
+                "error": {
+                    "message": "未找到音频文件（支持 .wav 和 .mp3 格式）",
+                    "code": "NO_AUDIO_FILES"
+                }
             }
+
+        # 只处理第一个文件
+        audio_file = audio_files[0]
+        print(f"[ASR] Processing file: {audio_file.name}")
 
         # 3. 准备文件上传
-        files = []
+        file_handle = None
         try:
-            for audio_file in audio_files:
-                files.append(
-                    ('files', (audio_file.name, open(audio_file, 'rb'), 'audio/wav'))
-                )
-        except Exception as e:
-            # 确保关闭所有已打开的文件
-            for _, file_tuple in files:
-                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
-                    file_tuple[1].close()
-            return {
-                "success": False,
-                "error": f"打开音频文件失败: {str(e)}",
-                "error_code": "FILE_OPEN_ERROR"
-            }
+            file_handle = open(audio_file, 'rb')
+            files = [('files', (audio_file.name, file_handle, 'audio/wav'))]
 
-        # 4. 准备表单数据
-        data = {
-            "lang": lang
-        }
+            # 4. 准备表单数据
+            data = {"lang": lang}
 
-        # 如果提供了 keys，添加到请求中
-        if keys and keys.strip():
-            data["keys"] = keys.strip()
-
-        # 5. 调用 ASR API
-        try:
+            # 5. 调用 ASR API
             response = requests.post(
                 ASR_API_URL,
                 files=files,
@@ -161,75 +147,88 @@ def audio_to_text(lang: str = "auto", keys: str = "") -> dict:
                 timeout=300  # 5分钟超时（处理较长音频）
             )
 
-            # 关闭所有文件句柄
-            for _, file_tuple in files:
-                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
-                    file_tuple[1].close()
-
             # 检查响应状态
             if response.status_code != 200:
                 return {
-                    "success": False,
-                    "error": f"ASR 服务返回错误: HTTP {response.status_code}",
-                    "error_code": "ASR_API_ERROR",
-                    "details": response.text
+                    "error": {
+                        "message": f"ASR 服务返回错误: HTTP {response.status_code} - {response.text}",
+                        "code": "ASR_API_ERROR"
+                    }
                 }
 
             # 解析响应
             result_data = response.json()
 
             # 6. 格式化返回结果
+            # ASR 服务返回格式: {"result": [{"key": "filename", "text": "...", ...}]}
+            if isinstance(result_data, dict) and "result" in result_data:
+                results = result_data["result"]
+                if results and len(results) > 0:
+                    first_result = results[0]
+                    return {
+                        "text": first_result.get("clean_text") or first_result.get("text", ""),
+                        "filename": audio_file.name,
+                        "language": lang,
+                        "raw_text": first_result.get("raw_text", ""),
+                        "clean_text": first_result.get("clean_text", "")
+                    }
+
+            # 如果格式不符合预期，返回原始数据
             return {
-                "success": True,
-                "results": result_data,
-                "total_files": len(audio_files),
-                "language": lang,
-                "api_url": ASR_API_URL
+                "text": str(result_data),
+                "filename": audio_file.name,
+                "language": lang
             }
 
         except requests.exceptions.Timeout:
-            # 关闭文件
-            for _, file_tuple in files:
-                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
-                    file_tuple[1].close()
             return {
-                "success": False,
-                "error": "ASR 服务请求超时（5分钟）",
-                "error_code": "TIMEOUT"
+                "error": {
+                    "message": "ASR 服务请求超时（5分钟）",
+                    "code": "TIMEOUT"
+                }
             }
 
         except requests.exceptions.ConnectionError:
-            # 关闭文件
-            for _, file_tuple in files:
-                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
-                    file_tuple[1].close()
             return {
-                "success": False,
-                "error": f"无法连接到 ASR 服务: {ASR_API_URL}",
-                "error_code": "CONNECTION_ERROR"
+                "error": {
+                    "message": f"无法连接到 ASR 服务: {ASR_API_URL}",
+                    "code": "CONNECTION_ERROR"
+                }
             }
 
         except requests.exceptions.RequestException as e:
-            # 关闭文件
-            for _, file_tuple in files:
-                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
-                    file_tuple[1].close()
             return {
-                "success": False,
-                "error": f"请求 ASR 服务时发生错误: {str(e)}",
-                "error_code": "REQUEST_ERROR"
+                "error": {
+                    "message": f"请求 ASR 服务时发生错误: {str(e)}",
+                    "code": "REQUEST_ERROR"
+                }
             }
 
         except ValueError as e:
             return {
-                "success": False,
-                "error": f"解析 ASR 响应失败: {str(e)}",
-                "error_code": "PARSE_ERROR"
+                "error": {
+                    "message": f"解析 ASR 响应失败: {str(e)}",
+                    "code": "PARSE_ERROR"
+                }
             }
+
+        except Exception as e:
+            return {
+                "error": {
+                    "message": f"打开或处理音频文件失败: {str(e)}",
+                    "code": "FILE_ERROR"
+                }
+            }
+
+        finally:
+            # 确保关闭文件
+            if file_handle:
+                file_handle.close()
 
     except Exception as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": "UNEXPECTED_ERROR"
+            "error": {
+                "message": str(e),
+                "code": "UNEXPECTED_ERROR"
+            }
         }

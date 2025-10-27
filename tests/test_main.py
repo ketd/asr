@@ -9,7 +9,7 @@ from pathlib import Path
 import tempfile
 import shutil
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from src.main import audio_to_text
 
 
@@ -51,9 +51,9 @@ class TestASRFunction:
         """测试无效的语言参数"""
         result = audio_to_text(lang="invalid_lang")
 
-        assert result["success"] is False
-        assert result["error_code"] == "INVALID_LANGUAGE"
-        assert "不支持的语言" in result["error"]
+        assert "error" in result
+        assert result["error"]["code"] == "INVALID_LANGUAGE"
+        assert "不支持的语言" in result["error"]["message"]
 
     def test_audio_to_text_no_input_dir(self):
         """测试输入目录不存在"""
@@ -66,16 +66,16 @@ class TestASRFunction:
 
             os.chdir(original_cwd)
 
-            assert result["success"] is False
-            assert result["error_code"] == "NO_INPUT_DIR"
+            assert "error" in result
+            assert result["error"]["code"] == "NO_INPUT_DIR"
 
     def test_audio_to_text_no_audio_files(self, workspace):
         """测试没有音频文件"""
         result = audio_to_text()
 
-        assert result["success"] is False
-        assert result["error_code"] == "NO_AUDIO_FILES"
-        assert "未找到音频文件" in result["error"]
+        assert "error" in result
+        assert result["error"]["code"] == "NO_AUDIO_FILES"
+        assert "未找到音频文件" in result["error"]["message"]
 
     @patch('src.main.requests.post')
     def test_audio_to_text_success(self, mock_post, workspace_with_audio):
@@ -83,37 +83,25 @@ class TestASRFunction:
         # 模拟 ASR API 响应
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = [
-            {
-                "filename": "test.wav",
-                "text": "这是一段测试音频",
-                "language": "zh"
-            }
-        ]
+        mock_response.json.return_value = {
+            "result": [
+                {
+                    "key": "test.wav",
+                    "text": "这是一段测试音频",
+                    "clean_text": "这是一段测试音频",
+                    "raw_text": "<|zh|>这是一段测试音频"
+                }
+            ]
+        }
         mock_post.return_value = mock_response
 
         result = audio_to_text(lang="zh")
 
-        assert result["success"] is True
-        assert "results" in result
-        assert result["total_files"] == 1
+        assert "error" not in result
+        assert "text" in result
+        assert result["text"] == "这是一段测试音频"
+        assert result["filename"] == "test.wav"
         assert result["language"] == "zh"
-        assert "api_url" in result
-
-    @patch('src.main.requests.post')
-    def test_audio_to_text_with_keys(self, mock_post, workspace_with_audio):
-        """测试指定文件名参数"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = []
-        mock_post.return_value = mock_response
-
-        result = audio_to_text(lang="auto", keys="meeting1")
-
-        assert result["success"] is True
-        # 验证 keys 参数被传递
-        call_args = mock_post.call_args
-        assert call_args[1]["data"]["keys"] == "meeting1"
 
     @patch('src.main.requests.post')
     def test_audio_to_text_api_error(self, mock_post, workspace_with_audio):
@@ -125,9 +113,9 @@ class TestASRFunction:
 
         result = audio_to_text()
 
-        assert result["success"] is False
-        assert result["error_code"] == "ASR_API_ERROR"
-        assert "HTTP 500" in result["error"]
+        assert "error" in result
+        assert result["error"]["code"] == "ASR_API_ERROR"
+        assert "HTTP 500" in result["error"]["message"]
 
     @patch('src.main.requests.post')
     def test_audio_to_text_timeout(self, mock_post, workspace_with_audio):
@@ -137,9 +125,9 @@ class TestASRFunction:
 
         result = audio_to_text()
 
-        assert result["success"] is False
-        assert result["error_code"] == "TIMEOUT"
-        assert "超时" in result["error"]
+        assert "error" in result
+        assert result["error"]["code"] == "TIMEOUT"
+        assert "超时" in result["error"]["message"]
 
     @patch('src.main.requests.post')
     def test_audio_to_text_connection_error(self, mock_post, workspace_with_audio):
@@ -149,9 +137,9 @@ class TestASRFunction:
 
         result = audio_to_text()
 
-        assert result["success"] is False
-        assert result["error_code"] == "CONNECTION_ERROR"
-        assert "无法连接" in result["error"]
+        assert "error" in result
+        assert result["error"]["code"] == "CONNECTION_ERROR"
+        assert "无法连接" in result["error"]["message"]
 
     @patch('src.main.requests.post')
     def test_audio_to_text_parse_error(self, mock_post, workspace_with_audio):
@@ -163,12 +151,12 @@ class TestASRFunction:
 
         result = audio_to_text()
 
-        assert result["success"] is False
-        assert result["error_code"] == "PARSE_ERROR"
-        assert "解析" in result["error"]
+        assert "error" in result
+        assert result["error"]["code"] == "PARSE_ERROR"
+        assert "解析" in result["error"]["message"]
 
-    def test_audio_to_text_multiple_files(self, workspace):
-        """测试多个音频文件"""
+    def test_audio_to_text_single_file_only(self, workspace):
+        """测试只处理第一个文件（即使有多个文件）"""
         inputs_dir = workspace / "data" / "inputs"
 
         # 创建多个模拟音频文件
@@ -179,13 +167,23 @@ class TestASRFunction:
         with patch('src.main.requests.post') as mock_post:
             mock_response = Mock()
             mock_response.status_code = 200
-            mock_response.json.return_value = []
+            mock_response.json.return_value = {
+                "result": [{
+                    "key": "test.wav",
+                    "text": "test",
+                    "clean_text": "test"
+                }]
+            }
             mock_post.return_value = mock_response
 
             result = audio_to_text()
 
-            assert result["success"] is True
-            assert result["total_files"] == 3
+            # 确保只处理了一个文件（文件名是3个中的一个）
+            assert "error" not in result
+            assert "filename" in result
+            assert result["filename"] in ["audio1.wav", "audio2.mp3", "audio3.WAV"]
+            # 验证requests.post只被调用了一次（只处理一个文件）
+            assert mock_post.call_count == 1
 
     def test_audio_to_text_valid_languages(self, workspace_with_audio):
         """测试所有支持的语言参数"""
@@ -194,10 +192,12 @@ class TestASRFunction:
         with patch('src.main.requests.post') as mock_post:
             mock_response = Mock()
             mock_response.status_code = 200
-            mock_response.json.return_value = []
+            mock_response.json.return_value = {
+                "result": [{"text": "test", "clean_text": "test"}]
+            }
             mock_post.return_value = mock_response
 
             for lang in valid_languages:
                 result = audio_to_text(lang=lang)
-                assert result["success"] is True
+                assert "error" not in result
                 assert result["language"] == lang
