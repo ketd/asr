@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "id": "asr-prefab",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "name": "ASR 语音识别预制件",
   "description": "将音频文件（wav/mp3）转换为文字，支持中文、英文、粤语、日语、韩语等多种语言",
   "author": "ketd",

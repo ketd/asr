@@ -28,7 +28,8 @@ from pathlib import Path
 
 
 # 固定路径常量
-DATA_INPUTS = Path("data/inputs")
+# v3.0: 文件组按 manifest 中的 key 组织（这里是 "input"）
+DATA_INPUTS = Path("data/inputs/input")
 DATA_OUTPUTS = Path("data/outputs")
 
 # ASR 服务配置
@@ -44,8 +45,9 @@ def audio_to_text(lang: str = "auto") -> dict:
     一次只处理一个音频文件。
 
     📁 v3.0 文件约定：
-    - 输入：自动扫描 data/inputs/ 目录，处理第一个音频文件
+    - 输入：自动扫描 data/inputs/input/ 目录（文件组名为 "input"）
     - Gateway 已将用户上传的文件下载到该目录
+    - 注意：文件组织在 data/inputs/<文件组名>/ 子目录中
 
     🎤 支持的音频格式：
     - WAV（推荐 16KHz 采样率）

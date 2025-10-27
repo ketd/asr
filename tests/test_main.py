@@ -22,8 +22,8 @@ class TestASRFunction:
         temp_dir = tempfile.mkdtemp()
         workspace_path = Path(temp_dir)
 
-        # 创建目录结构
-        inputs_dir = workspace_path / "data" / "inputs"
+        # 创建目录结构（v3.0: 文件组在子目录中）
+        inputs_dir = workspace_path / "data" / "inputs" / "input"
         inputs_dir.mkdir(parents=True)
 
         # 切换到工作空间
@@ -39,7 +39,7 @@ class TestASRFunction:
     @pytest.fixture
     def workspace_with_audio(self, workspace):
         """创建包含音频文件的工作空间"""
-        inputs_dir = workspace / "data" / "inputs"
+        inputs_dir = workspace / "data" / "inputs" / "input"
 
         # 创建模拟音频文件（空文件，仅用于测试文件扫描）
         audio_file = inputs_dir / "test.wav"
@@ -157,7 +157,7 @@ class TestASRFunction:
 
     def test_audio_to_text_single_file_only(self, workspace):
         """测试只处理第一个文件（即使有多个文件）"""
-        inputs_dir = workspace / "data" / "inputs"
+        inputs_dir = workspace / "data" / "inputs" / "input"
 
         # 创建多个模拟音频文件
         (inputs_dir / "audio1.wav").write_bytes(b"fake audio 1")

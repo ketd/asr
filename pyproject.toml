@@ -1,6 +1,6 @@
 [project]
 name = "asr-prefab"
-version = "0.2.0"
+version = "0.2.1"
 description = "ASR (自动语音识别) 预制件，支持将音频文件转换为文字"
 readme = "README.md"
 requires-python = ">=3.11"
