@@ -25,7 +25,6 @@
 import os
 import requests
 from pathlib import Path
-from typing import Dict, Any
 
 
 # 固定路径常量
