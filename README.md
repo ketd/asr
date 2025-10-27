@@ -1,55 +1,79 @@
-# 🚀 AI 预制件模板 (Prefab Template)
+# 🎤 ASR 语音识别预制件 (ASR Prefab)
 
-[![Build and Release](https://github.com/your-org/prefab-template/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/your-org/prefab-template/actions)
+[![Build and Release](https://github.com/your-org/asr-prefab/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/your-org/asr-prefab/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/managed%20by-uv-F67909.svg)](https://github.com/astral-sh/uv)
 [![Code style: flake8](https://img.shields.io/badge/code%20style-flake8-black)](https://flake8.pycqa.org/)
 
-> **这是一个标准化的预制件模板仓库，用于为 AI 编码平台创建可复用的高质量代码模块。**
+> **将音频文件转换为文字的 AI 预制件。支持多种语言（中文、英文、粤语、日语、韩语）和音频格式（WAV、MP3）。**
 
 ## 📋 目录
 
-- [什么是预制件？](#什么是预制件)
+- [功能介绍](#功能介绍)
 - [快速开始](#快速开始)
-- [项目结构](#项目结构)
+- [使用示例](#使用示例)
+- [配置说明](#配置说明)
+- [API 参数](#api-参数)
+- [错误处理](#错误处理)
 - [开发指南](#开发指南)
 - [测试与验证](#测试与验证)
-- [发布流程](#发布流程)
-- [示例预制件](#示例预制件)
 - [常见问题](#常见问题)
 
 **📚 更多文档**: [文档索引](DOCS_INDEX.md) | [架构设计](ARCHITECTURE.md) | [AI助手指南](AGENTS.md)
 
-## 什么是预制件？
+## 功能介绍
 
-预制件 (Prefab) 是一个可被 AI 直接调用的、经过标准化打包的 Python 代码模块。它解决了 AI 在处理复杂业务逻辑时能力不足的问题，通过社区贡献的方式为平台提供高质量、可复用的代码组件。
+这个预制件封装了 ASR (Automatic Speech Recognition，自动语音识别) 服务，可以将音频文件转换为文字。
 
-### 核心特性
+### 核心功能
 
-- ✅ **标准化结构**: 统一的文件组织和配置规范
-- 🤖 **AI 友好**: 明确的函数签名和元数据描述
-- 🚀 **自动化 CI/CD**: 一键测试、打包、发布
-- 📦 **依赖管理**: 自动打包运行时依赖
-- 🔒 **质量保证**: 强制性的代码检查和测试
-- 🔐 **密钥管理**: 完善的 secrets 支持（v3.0 新特性）
+- 🎤 **多语言支持**: 中文、英文、粤语、日语、韩语，支持自动检测
+- 🎵 **多格式支持**: WAV、MP3 音频格式
+- 📦 **批量处理**: 支持同时处理多个音频文件
+- ⚡ **高效转换**: 基于专业的 ASR 服务引擎
+- 🔄 **自动重试**: 包含完善的错误处理机制
+- 🌐 **灵活配置**: 支持通过环境变量配置 API 地址
+
+### 支持的语言
+
+| 语言代码 | 语言名称 | 说明 |
+|---------|---------|------|
+| `auto` | 自动检测 | 自动识别音频语言（默认） |
+| `zh` | 中文 | 普通话 |
+| `en` | 英语 | English |
+| `yue` | 粤语 | 广东话 |
+| `ja` | 日语 | 日本語 |
+| `ko` | 韩语 | 한국어 |
+| `nospeech` | 无语音 | 仅用于标记无语音内容 |
+
+### 支持的音频格式
+
+- **WAV**: 推荐 16KHz 采样率
+- **MP3**: 推荐 16KHz 采样率
+
+### 技术架构
+
+- **基于 v3.0 架构**: 符合最新的预制件规范
+- **文件自动管理**: Gateway 自动处理文件上传和下载
+- **标准化输出**: 统一的响应格式，便于 AI 解析
 
 ## 快速开始
 
-### 1. 使用此模板创建新仓库
+### 1. 前置要求
 
-点击 GitHub 上的 "Use this template" 按钮，或者克隆此仓库：
+- Python 3.11+
+- ASR 服务地址（默认: `http://192.168.1.218:50000/api/v1/asr`）
+- [uv](https://github.com/astral-sh/uv) 包管理工具
 
-```bash
-git clone https://github.com/your-org/prefab-template.git my-prefab
-cd my-prefab
-```
+### 2. 安装
 
-### 2. 安装开发依赖
-
-使用现代化的 [uv](https://github.com/astral-sh/uv) 工具：
+克隆仓库并安装依赖：
 
 ```bash
+git clone https://github.com/your-org/asr-prefab.git
+cd asr-prefab
+
 # 安装 uv（如果尚未安装）
 # Windows: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 # macOS/Linux: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -58,13 +82,40 @@ cd my-prefab
 uv sync --dev
 ```
 
-### 3. 编写你的预制件
+### 3. 配置 ASR 服务地址（可选）
 
-1. **编辑 `src/main.py`**: 在这里编写你的核心业务逻辑
-2. **更新 `prefab-manifest.json`**: 描述你的函数签名和元数据
-3. **编写测试**: 在 `tests/test_main.py` 中添加单元测试
+默认使用 `http://192.168.1.218:50000/api/v1/asr`。如需修改，设置环境变量：
 
-### 4. 本地测试
+```bash
+# Linux/macOS
+export ASR_API_URL="http://your-asr-service:port/api/v1/asr"
+
+# Windows (CMD)
+set ASR_API_URL=http://your-asr-service:port/api/v1/asr
+
+# Windows (PowerShell)
+$env:ASR_API_URL="http://your-asr-service:port/api/v1/asr"
+```
+
+### 4. 使用示例
+
+在 AI 平台中，上传音频文件并调用 `audio_to_text` 函数：
+
+```python
+# AI 会自动将用户上传的音频文件放到 data/inputs/ 目录
+# 然后调用函数：
+
+# 自动检测语言
+result = audio_to_text()
+
+# 指定中文
+result = audio_to_text(lang="zh")
+
+# 指定英文
+result = audio_to_text(lang="en")
+```
+
+### 5. 本地测试
 
 ```bash
 # 运行测试
@@ -75,65 +126,170 @@ uv run flake8 src/ --max-line-length=120
 
 # 验证 manifest 一致性
 uv run python scripts/validate_manifest.py
-
-# 一键运行所有验证
-uv run python scripts/quick_start.py
 ```
 
-### 5. 发布预制件
+## 使用示例
 
-```bash
-# 方式一: 使用版本升级脚本（推荐）
-uv run python scripts/version_bump.py patch  # 1.0.0 -> 1.0.1
-# 或
-uv run python scripts/version_bump.py minor  # 1.0.0 -> 1.1.0
-# 或
-uv run python scripts/version_bump.py major  # 1.0.0 -> 2.0.0
+### 基本用法
 
-# 然后提交并推送
-git add .
-git commit -m "Bump version to x.x.x"
-git tag vx.x.x
-git push origin vx.x.x
+```python
+from src.main import audio_to_text
 
-# 方式二: 手动更新
-# 1. 手动编辑 prefab-manifest.json 和 pyproject.toml 中的 version（必须保持一致）
-# 2. git tag v1.0.0
-# 3. git push origin v1.0.0
+# 1. 自动检测语言（默认）
+result = audio_to_text()
+print(result)
+# {
+#   "success": True,
+#   "results": [...],  # ASR 服务返回的转录结果
+#   "total_files": 1,
+#   "language": "auto",
+#   "api_url": "http://192.168.1.218:50000/api/v1/asr"
+# }
+
+# 2. 指定语言为中文
+result = audio_to_text(lang="zh")
+
+# 3. 指定语言为英文
+result = audio_to_text(lang="en")
+
+# 4. 指定文件名（多个文件时）
+result = audio_to_text(lang="auto", keys="meeting1,meeting2")
 ```
 
-🎉 GitHub Actions 将自动完成测试、打包（生成 .whl 格式）和发布！
+### AI 集成示例
 
-## 项目结构
+当部署到 AI 平台后，用户可以这样使用：
 
+> **用户**: "帮我把这段录音转成文字"  
+> *[用户上传音频文件 meeting.wav]*  
+> **AI**: *调用 `audio_to_text()`*  
+> **AI**: "已完成转录：\n\n「你好，欢迎参加今天的会议...」"
+
+> **用户**: "转录这段英文音频"  
+> *[用户上传音频文件 podcast.mp3]*  
+> **AI**: *调用 `audio_to_text(lang="en")`*  
+> **AI**: "转录完成：\n\n「Hello everyone, welcome to today's podcast...」"
+
+## 配置说明
+
+### 环境变量
+
+| 变量名 | 说明 | 默认值 |
+|-------|------|--------|
+| `ASR_API_URL` | ASR 服务的 API 地址 | `http://192.168.1.218:50000/api/v1/asr` |
+
+### 文件路径约定（v3.0 架构）
+
+| 路径 | 用途 | 说明 |
+|------|------|------|
+| `data/inputs/` | 输入音频文件 | Gateway 自动下载用户上传的文件到此目录 |
+| `data/outputs/` | 输出文件（可选） | 如需生成文件，放到此目录，Gateway 会自动上传 |
+
+## API 参数
+
+### `audio_to_text(lang, keys)`
+
+将音频文件转换为文字。
+
+**参数：**
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| `lang` | `string` | 否 | `"auto"` | 音频语言，可选值：`auto`, `zh`, `en`, `yue`, `ja`, `ko`, `nospeech` |
+| `keys` | `string` | 否 | `""` | 文件名列表（逗号分隔），为空时使用实际文件名 |
+
+**返回值（成功）：**
+
+```python
+{
+    "success": True,
+    "results": [
+        # ASR 服务返回的转录结果
+        # 具体格式取决于后端 ASR 服务
+    ],
+    "total_files": 1,
+    "language": "auto",
+    "api_url": "http://192.168.1.218:50000/api/v1/asr"
+}
 ```
-prefab-template/
-├── .github/
-│   └── workflows/
-│       └── build-and-release.yml    # CI/CD 自动化流程
-├── src/
-│   └── main.py                      # 预制件核心代码（必须）
-├── tests/
-│   └── test_main.py                 # 单元测试
-├── scripts/
-│   └── validate_manifest.py         # Manifest 验证脚本
-├── prefab-manifest.json             # 预制件元数据（必须）
-├── pyproject.toml                   # 项目配置和依赖
-├── .gitignore                       # Git 忽略文件
-├── LICENSE                          # 开源许可证
-└── README.md                        # 项目文档
+
+**返回值（失败）：**
+
+```python
+{
+    "success": False,
+    "error": "错误信息",
+    "error_code": "ERROR_CODE",
+    "details": "详细错误信息（可选）"
+}
+```
+
+## 错误处理
+
+### 错误代码说明
+
+| 错误代码 | 说明 | 解决方法 |
+|---------|------|---------|
+| `INVALID_LANGUAGE` | 不支持的语言代码 | 检查 `lang` 参数是否正确 |
+| `NO_INPUT_DIR` | 输入目录不存在 | 确保 `data/inputs/` 目录存在 |
+| `NO_AUDIO_FILES` | 未找到音频文件 | 确保上传了 .wav 或 .mp3 文件 |
+| `FILE_OPEN_ERROR` | 无法打开音频文件 | 检查文件权限和格式 |
+| `ASR_API_ERROR` | ASR 服务返回错误 | 检查 ASR 服务状态和配置 |
+| `TIMEOUT` | 请求超时 | 音频文件过大或服务响应慢 |
+| `CONNECTION_ERROR` | 无法连接 ASR 服务 | 检查网络和服务地址 |
+| `REQUEST_ERROR` | 请求失败 | 查看 error 字段了解详情 |
+| `PARSE_ERROR` | 解析响应失败 | ASR 服务返回了非 JSON 格式 |
+| `UNEXPECTED_ERROR` | 未知错误 | 查看 error 字段了解详情 |
+
+### 示例错误处理
+
+```python
+result = audio_to_text(lang="zh")
+
+if not result["success"]:
+    error_code = result.get("error_code")
+    error_msg = result.get("error")
+    
+    if error_code == "NO_AUDIO_FILES":
+        print("请先上传音频文件")
+    elif error_code == "CONNECTION_ERROR":
+        print("无法连接到 ASR 服务，请检查配置")
+    else:
+        print(f"转录失败: {error_msg}")
+else:
+    print(f"成功转录 {result['total_files']} 个文件")
 ```
 
 ## 开发指南
 
-### `src/main.py` - 核心业务逻辑
+### 项目结构
 
-这是你的预制件的唯一入口文件。所有暴露给 AI 的函数都必须在此文件中定义。
+```
+asr-prefab/
+├── .github/
+│   └── workflows/
+│       └── build-and-release.yml    # CI/CD 自动化流程
+├── src/
+│   └── main.py                      # ASR 核心代码
+├── tests/
+│   └── test_main.py                 # 单元测试
+├── data/
+│   ├── inputs/                      # 输入音频文件目录
+│   └── outputs/                     # 输出文件目录（可选）
+├── scripts/
+│   └── validate_manifest.py         # Manifest 验证脚本
+├── prefab-manifest.json             # 预制件元数据
+├── pyproject.toml                   # 项目配置和依赖
+└── README.md                        # 本文档
+```
 
-**示例函数：**
+### 修改 ASR 服务地址
+
+编辑 `src/main.py`，修改默认值：
 
 ```python
-def analyze_dataset(data: list, operation: str = "statistics") -> dict:
+# ASR 服务配置
+ASR_API_URL = os.environ.get("ASR_API_URL", "http://your-new-url:port/api/v1/asr")
     """
     分析数据集并返回统计结果
     
@@ -357,46 +513,14 @@ uv sync --dev
 
 ### 单元测试
 
-**使用真实数据文件进行测试** - 这是我们的核心测试理念。
-
-本模板展示了如何使用真实媒体文件（`tests/test.mp4`）进行功能测试：
-
-```python
-# tests/test_video.py
-import os
-import pytest
-from src.main import video_to_audio
-
-class TestVideoToAudio:
-    @pytest.fixture
-    def test_video_path(self):
-        """提供真实的测试视频文件"""
-        return os.path.join(os.path.dirname(__file__), "test.mp4")
-    
-    def test_video_to_audio_default(self, test_video_path):
-        """使用真实视频测试转换功能"""
-        result = video_to_audio(test_video_path)
-        
-        assert result["success"] is True
-        assert os.path.exists(result["data"]["output_file"])
-```
-
-**测试数据最佳实践：**
-- ✅ 将小型真实数据提交到 `tests/` 目录（< 5MB）
-- ✅ 测试可重现、可审核
-- ❌ 避免仅用 mock 数据
-
-**运行测试：**
+运行测试：
 
 ```bash
-# 运行所有测试（使用 uv）
-uv run --with pytest pytest tests/ -v
-
-# 运行特定测试
-uv run --with pytest pytest tests/test_video.py -v
+# 运行所有测试
+uv run pytest tests/ -v
 
 # 查看测试覆盖率
-uv run --with pytest --with pytest-cov pytest tests/ --cov=src --cov-report=html
+uv run pytest tests/ --cov=src --cov-report=html
 ```
 
 ### Manifest 验证
@@ -404,175 +528,103 @@ uv run --with pytest --with pytest-cov pytest tests/ --cov=src --cov-report=html
 验证 `prefab-manifest.json` 与代码的一致性：
 
 ```bash
-python scripts/validate_manifest.py
+uv run python scripts/validate_manifest.py
 ```
-
-此脚本会检查：
-- ✅ Manifest 中声明的函数是否都存在于 `main.py`
-- ✅ 函数参数的名称和必选/可选属性是否匹配
-- ⚠️  `main.py` 中的公共函数是否都在 Manifest 中声明
 
 ## 发布流程
 
-### 自动化发布（推荐）
+### 版本升级
 
-整个发布流程完全自动化，你只需要：
+使用脚本自动升级版本号：
 
-1. **更新版本号**: 编辑 `prefab-manifest.json`，修改 `version` 字段
-2. **提交更改**: `git add . && git commit -m "Release v1.0.0"`
-3. **创建标签**: `git tag v1.0.0`（版本号必须与 manifest 一致）
-4. **推送标签**: `git push origin v1.0.0`
+```bash
+# 修复版本 (0.1.0 -> 0.1.1)
+uv run python scripts/version_bump.py patch
 
-GitHub Actions 将自动执行以下步骤：
+# 功能版本 (0.1.0 -> 0.2.0)
+uv run python scripts/version_bump.py minor
 
-```mermaid
-graph LR
-    A[推送 Tag] --> B[代码检查]
-    B --> C[运行测试]
-    C --> D[验证 Manifest]
-    D --> E[打包预制件]
-    E --> F[创建 Release]
-    F --> G[上传附件]
+# 主版本 (0.1.0 -> 1.0.0)
+uv run python scripts/version_bump.py major
 ```
 
-### 发布产物
+### 发布到 GitHub
 
-- **格式**: Python Wheel (`.whl`)（例如 `hello_world_prefab-0.1.0-py3-none-any.whl`）
-- **内容**: 
-  - `src/` 目录（包含所有源代码）
-  - `prefab-manifest.json`（元数据文件）
-  - 所有运行时依赖（自动包含）
-- **位置**: GitHub Release 附件
-- **优势**: 标准 Python 包格式，兼容性更好，安装更便捷
+```bash
+# 提交更改
+git add .
+git commit -m "Release v0.2.0"
 
-## 示例预制件
+# 创建 tag
+git tag v0.2.0
 
-本模板自带一个完整的科学计算示例预制件，包含一个功能丰富的函数：
-
-### `analyze_dataset(data, operation)` - 数据集分析
-
-支持多种操作类型：
-
-```python
-# 完整统计
-result = analyze_dataset([1, 2, 3, 4, 5], "statistics")
-# {"success": True, "data": {"operation": "statistics", "statistics": {...}}}
-
-# 求和
-result = analyze_dataset([10, 20, 30], "sum")
-# {"success": True, "data": {"operation": "sum", "value": 60, "count": 3}}
-
-# 平均值
-result = analyze_dataset([2, 4, 6], "average")
-# {"success": True, "data": {"operation": "average", "value": 4.0, "count": 3}}
+# 推送
+git push origin v0.2.0
 ```
 
-你可以直接修改这个示例，或者完全替换为自己的业务逻辑。
-
-## AI 集成说明
-
-当你的预制件发布后，AI 平台将能够：
-
-1. **自动发现**: 通过 `prefab-manifest.json` 理解预制件的功能
-2. **智能调用**: 根据用户的自然语言需求，选择合适的函数并传递参数
-3. **解释结果**: 将函数返回值转换为用户友好的输出
-
-**用户体验示例：**
-
-> 用户: "帮我分析这组数据的统计信息：[10, 20, 30, 40, 50]"  
-> AI: *调用 `analyze_dataset([10, 20, 30, 40, 50], "statistics")`*  
-> AI: "已完成分析：共 5 个数据点，平均值 30.0，最大值 50，最小值 10"
+GitHub Actions 会自动构建并发布 Release。
 
 ## 常见问题
 
-### Q: 我可以使用第三方库吗？
+### Q: ASR 服务返回什么格式的数据？
 
-**A**: 当然可以！使用 `uv add package-name` 添加运行时依赖，CI/CD 会自动打包。
+**A**: 这取决于你使用的 ASR 服务后端。本预制件会将 ASR 服务的原始响应放在 `results` 字段中返回。请查看你的 ASR 服务文档了解具体格式。
 
+### Q: 支持哪些音频格式？
+
+**A**: 目前支持 WAV 和 MP3 格式。推荐使用 16KHz 采样率的音频以获得最佳识别效果。
+
+### Q: 如何修改 ASR 服务地址？
+
+**A**: 有两种方式：
+
+1. **通过环境变量**（推荐）：
 ```bash
-# 添加运行时依赖（会被打包）
-uv add requests pandas
-
-# 添加开发依赖（不会被打包）
-uv add --dev pytest-mock
+export ASR_API_URL="http://your-service:port/api/v1/asr"
 ```
 
-### Q: 如何处理敏感信息（如 API Key）？
+2. **修改代码**：编辑 `src/main.py` 中的默认值。
 
-**A**: 推荐使用 v3.0 新增的 `secrets` 功能：
+### Q: 可以同时处理多个音频文件吗？
 
-1. **在 manifest.json 中声明密钥**（推荐）- 平台会引导用户配置，并自动注入到环境变量
-2. 通过函数参数传递 - 适用于非敏感的配置项
-3. **绝对不要**将密钥硬编码到代码中
+**A**: 可以！将多个音频文件都上传到 `data/inputs/` 目录，预制件会自动处理所有文件并返回结果。
 
-**示例：** 参见本模板的 `fetch_weather` 函数及其 manifest 配置。
+### Q: 转录超时怎么办？
 
-更多信息请参阅上方的 [密钥管理](#密钥管理secrets---v30-新特性) 章节。
+**A**: 当前超时设置为 5 分钟（300秒）。如果音频文件很大，可能需要增加超时时间。编辑 `src/main.py` 中的 `timeout` 参数：
 
-### Q: 可以添加多个 `.py` 文件吗？
-
-**A**: 可以！你可以在 `src/` 目录中创建多个模块，但 `main.py` 必须是唯一的入口点。
-
-**示例结构：**
-```
-src/
-├── main.py                    # 主入口文件
-├── utils/                     # 工具模块包
-│   ├── __init__.py
-│   └── math_utils.py         # 数学工具
-└── other_module.py           # 其他模块（可选）
-```
-
-**使用方式：**
 ```python
-# src/main.py
-try:
-    # 优先使用相对导入（打包时）
-    from .utils import helper_function
-except ImportError:
-    # 回退到绝对导入（开发/测试时）
-    from utils import helper_function
-
-def my_function():
-    return helper_function()
+response = requests.post(
+    ASR_API_URL,
+    files=files,
+    data=data,
+    timeout=600  # 修改为 10 分钟
+)
 ```
 
-本模板已包含完整的多文件示例，参见 `src/utils/` 目录。
+### Q: 如何获取转录的文本内容？
 
-### Q: 为什么要将测试数据提交到仓库？
+**A**: ASR 服务的响应格式在 `result["results"]` 中。具体字段取决于你使用的 ASR 服务。一般包含：
+
+```python
+result = audio_to_text()
+if result["success"]:
+    # 访问转录结果
+    transcriptions = result["results"]
+    # 具体格式请查看你的 ASR 服务文档
+```
+
+### Q: 支持实时流式转录吗？
+
+**A**: 当前版本不支持。音频需要完整上传后才能开始转录。如需流式支持，请参考 [STREAMING_GUIDE.md](STREAMING_GUIDE.md) 实现流式函数。
+
+### Q: 如何添加新的语言支持？
 
 **A**: 
-1. **可重现性** - 任何人都能运行测试并得到相同结果
-2. **可审核性** - 社区可以验证预制件确实能处理真实数据
-3. **CI/CD 自动化** - GitHub Actions 可以自动运行完整测试
-
-**最佳实践：**
-- 使用小型但真实的测试数据（如 5 秒的视频片段）
-- 在 README 中说明测试数据的来源和用途
-- 如果数据涉及版权，使用自己创建的测试数据
-
-### Q: 如何调试 CI/CD 失败？
-
-**A**: 
-1. 查看 GitHub Actions 的日志输出
-2. 本地运行相同的命令进行复现：
-   - `uv run --with pytest pytest tests/ -v` - 测试失败？
-   - `uv run --with flake8 flake8 src/` - 代码风格问题？
-   - `uv run python scripts/validate_manifest.py` - Manifest 不一致？
-3. 检查是否使用了正确的 uv 环境
-
-### Q: 版本号规范是什么？
-
-**A**: 遵循语义化版本 (Semantic Versioning):
-- **主版本号 (MAJOR)**: 不兼容的 API 更改
-- **次版本号 (MINOR)**: 向后兼容的功能新增
-- **修订号 (PATCH)**: 向后兼容的问题修复
-
-示例: `v1.2.3` → `1.2.3`
-
-### Q: 可以发布私有预制件吗？
-
-**A**: 可以！将仓库设为私有即可。Release 也会是私有的。
+1. 确认你的 ASR 服务支持该语言
+2. 在 `src/main.py` 的 `valid_languages` 列表中添加语言代码
+3. 在 `prefab-manifest.json` 的 `enum` 中添加相同的语言代码
+4. 运行验证脚本：`uv run python scripts/validate_manifest.py`
 
 ## 贡献指南
 

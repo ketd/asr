@@ -1,372 +1,236 @@
 """
-预制件核心逻辑模块
+预制件核心逻辑模块 - ASR 语音转文字服务
 
-这是一个示例预制件，展示了如何创建可被 AI 调用的函数。
-所有暴露给 AI 的函数都必须在此文件中定义。
+这个预制件封装了 ASR (Automatic Speech Recognition) 服务。
+将音频文件（wav/mp3）转换为文字。
 
 📁 文件路径约定：
-- 输入文件：data/inputs/<文件名>
-- 输出文件：data/outputs/<文件名>
-- 所有文件参数都是列表形式（即使只有一个文件）
+- 输入文件：data/inputs/<音频文件>
+- 输出文件：data/outputs/<结果文件>（如需要）
 
-📖 完整开发指南请查看：PREFAB_GUIDE.md
+🎤 支持的音频格式：
+- WAV（推荐 16KHz 采样率）
+- MP3（推荐 16KHz 采样率）
 
-🌊 流式函数说明：
-- 使用生成器函数（yield）实现流式返回
-- 在 manifest 中设置 "streaming": true
-- 适用于实时输出、进度报告、大数据处理等场景
+🌐 支持的语言：
+- auto: 自动检测
+- zh: 中文（普通话）
+- en: 英语
+- yue: 粤语
+- ja: 日语
+- ko: 韩语
+- nospeech: 无语音
 """
 
 import os
-import time
+import requests
 from pathlib import Path
-from typing import List, Iterator, Dict, Any
+from typing import Dict, Any
 
 
 # 固定路径常量
 DATA_INPUTS = Path("data/inputs")
 DATA_OUTPUTS = Path("data/outputs")
 
+# ASR 服务配置
+ASR_API_URL = os.environ.get("ASR_API_URL", "http://192.168.1.218:50000/api/v1/asr")
 
-def greet(name: str = "World") -> dict:
+
+def audio_to_text(lang: str = "auto", keys: str = "") -> dict:
     """
-    向用户问候
+    将音频文件转换为文字（ASR - 自动语音识别）
 
-    这是一个简单的示例函数，展示了预制件函数的基本结构。
-
-    Args:
-        name: 要问候的名字，默认为 "World"
-
-    Returns:
-        包含问候结果的字典
-
-    Examples:
-        >>> greet()
-        {'success': True, 'message': 'Hello, World!', 'name': 'World'}
-
-        >>> greet(name="Alice")
-        {'success': True, 'message': 'Hello, Alice!', 'name': 'Alice'}
-    """
-    try:
-        # 参数验证
-        if not name or not isinstance(name, str):
-            return {
-                "success": False,
-                "error": "name 参数必须是非空字符串",
-                "error_code": "INVALID_NAME"
-            }
-
-        # 生成问候消息
-        message = f"Hello, {name}!"
-
-        return {
-            "success": True,
-            "message": message,
-            "name": name
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_code": "UNEXPECTED_ERROR"
-        }
-
-
-def echo(text: str) -> dict:
-    """
-    回显输入的文本
-
-    这个函数演示了基本的输入输出处理。
-
-    Args:
-        text: 要回显的文本
-
-    Returns:
-        包含回显结果的字典
-    """
-    try:
-        if not text:
-            return {
-                "success": False,
-                "error": "text 参数不能为空",
-                "error_code": "EMPTY_TEXT"
-            }
-
-        return {
-            "success": True,
-            "original": text,
-            "echo": text,
-            "length": len(text)
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_code": "UNEXPECTED_ERROR"
-        }
-
-
-def add_numbers(a: float, b: float) -> dict:
-    """
-    计算两个数字的和
-
-    这个函数演示了数值计算的基本模式。
-
-    Args:
-        a: 第一个数字
-        b: 第二个数字
-
-    Returns:
-        包含计算结果的字典
-    """
-    try:
-        result = a + b
-        return {
-            "success": True,
-            "a": a,
-            "b": b,
-            "sum": result
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_code": "CALCULATION_ERROR"
-        }
-
-
-def process_text_file(operation: str = "uppercase") -> dict:
-    """
-    处理文本文件（文件处理示例，v3.0 架构）
-
-    这个函数演示了 v3.0 的文件处理方式：
-    - 文件不再作为参数传入
-    - Gateway 自动下载到 data/inputs/
-    - Prefab 自动扫描 data/inputs/
-    - 输出写入 data/outputs/
-    - Gateway 自动上传并在响应中返回文件 URL
+    此函数调用 ASR 服务，将输入的音频文件转换为文本。
+    支持多种语言和音频格式（wav/mp3，推荐 16KHz 采样率）。
 
     📁 v3.0 文件约定：
-    - 输入：自动扫描 data/inputs/（Gateway 已下载）
-    - 输出：写入 data/outputs/（Gateway 会自动上传）
-    - 返回值：不包含文件路径（由 Gateway 管理）
+    - 输入：自动扫描 data/inputs/ 目录下的所有音频文件
+    - Gateway 已将用户上传的文件下载到该目录
+
+    🎤 支持的音频格式：
+    - WAV（推荐 16KHz 采样率）
+    - MP3（推荐 16KHz 采样率）
+
+    🌐 支持的语言：
+    - auto: 自动检测（默认）
+    - zh: 中文（普通话）
+    - en: 英语
+    - yue: 粤语
+    - ja: 日语
+    - ko: 韩语
+    - nospeech: 无语音
 
     Args:
-        operation: 操作类型（uppercase, lowercase, reverse）
+        lang: 音频内容的语言，默认为 "auto" 自动检测
+        keys: 每个音频文件的名称，用逗号连接（可选，如果为空则使用文件名）
 
     Returns:
-        包含处理结果的字典（不包含文件路径）
-    """
-    try:
-        # v3.0: 自动扫描 data/inputs 目录
-        input_files = list(DATA_INPUTS.glob("*"))
-        if not input_files:
-            return {
-                "success": False,
-                "error": "未找到输入文件",
-                "error_code": "NO_INPUT_FILE"
-            }
-
-        # 获取第一个文件
-        input_path = input_files[0]
-
-        # 读取文件内容
-        content = input_path.read_text(encoding="utf-8")
-
-        # 执行操作
-        if operation == "uppercase":
-            result = content.upper()
-        elif operation == "lowercase":
-            result = content.lower()
-        elif operation == "reverse":
-            result = content[::-1]
-        else:
-            return {
-                "success": False,
-                "error": f"不支持的操作: {operation}",
-                "error_code": "INVALID_OPERATION"
-            }
-
-        # 确保输出目录存在
-        DATA_OUTPUTS.mkdir(parents=True, exist_ok=True)
-
-        # v3.0: 写入输出文件（Gateway 会自动上传）
-        output_filename = f"processed_{input_path.name}"
-        output_path = DATA_OUTPUTS / output_filename
-        output_path.write_text(result, encoding="utf-8")
-
-        # v3.0: 返回结果（不包含文件路径）
-        return {
-            "success": True,
-            "operation": operation,
-            "original_length": len(content),
-            "processed_length": len(result)
+        包含转录结果的字典，格式：
+        {
+            "success": True/False,
+            "results": [
+                {
+                    "filename": "audio1.wav",
+                    "text": "转录的文本内容",
+                    "language": "zh"
+                },
+                ...
+            ],
+            "total_files": 整数,
+            "error": "错误信息（失败时）",
+            "error_code": "错误代码（失败时）"
         }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_code": "PROCESSING_ERROR"
-        }
-
-
-def fetch_weather(city: str) -> dict:
-    """
-    获取指定城市的天气信息（示例函数，演示 secrets 的使用）
-
-    这个函数演示了如何在预制件中使用密钥（secrets）。
-    平台会自动将用户配置的密钥注入到环境变量中。
-
-    注意：这是一个演示函数，实际不会调用真实的天气 API。
-
-    Args:
-        city: 要查询天气的城市名称
-
-    Returns:
-        包含天气信息的字典
 
     Examples:
-        >>> fetch_weather(city="北京")
-        {'success': True, 'city': '北京', 'temperature': 22.5, 'condition': '晴天'}
+        >>> # 自动检测语言
+        >>> audio_to_text()
+        {"success": True, "results": [...], "total_files": 1}
+
+        >>> # 指定中文
+        >>> audio_to_text(lang="zh")
+        {"success": True, "results": [...], "total_files": 1}
+
+        >>> # 指定文件名
+        >>> audio_to_text(lang="auto", keys="recording1,recording2")
+        {"success": True, "results": [...], "total_files": 2}
     """
     try:
-        # 从环境变量中获取 API Key（平台会自动注入）
-        api_key = os.environ.get('WEATHER_API_KEY')
-
-        # 验证密钥是否已配置
-        if not api_key:
+        # 1. 验证语言参数
+        valid_languages = ["auto", "zh", "en", "yue", "ja", "ko", "nospeech"]
+        if lang not in valid_languages:
             return {
                 "success": False,
-                "error": "未配置 WEATHER_API_KEY，请在平台上配置该密钥",
-                "error_code": "MISSING_API_KEY"
+                "error": f"不支持的语言: {lang}。支持的语言: {', '.join(valid_languages)}",
+                "error_code": "INVALID_LANGUAGE"
             }
 
-        # 验证参数
-        if not city or not isinstance(city, str):
+        # 2. 扫描输入目录，获取所有音频文件
+        if not DATA_INPUTS.exists():
             return {
                 "success": False,
-                "error": "city 参数必须是非空字符串",
-                "error_code": "INVALID_CITY"
+                "error": "输入目录不存在",
+                "error_code": "NO_INPUT_DIR"
             }
 
-        # 这里是演示代码，实际应该调用真实的天气 API
-        # import requests
-        # response = requests.get(
-        #     f"https://api.weather-provider.com/current",
-        #     params={"city": city, "key": api_key}
-        # )
-        # data = response.json()
+        # 支持的音频文件扩展名
+        audio_extensions = {".wav", ".mp3", ".WAV", ".MP3"}
+        audio_files = [
+            f for f in DATA_INPUTS.iterdir()
+            if f.is_file() and f.suffix in audio_extensions
+        ]
 
-        # 演示：返回模拟数据
-        return {
-            "success": True,
-            "city": city,
-            "temperature": 22.5,
-            "condition": "晴天",
-            "note": "这是演示数据，未调用真实 API"
+        if not audio_files:
+            return {
+                "success": False,
+                "error": "未找到音频文件（支持 .wav 和 .mp3 格式）",
+                "error_code": "NO_AUDIO_FILES"
+            }
+
+        # 3. 准备文件上传
+        files = []
+        try:
+            for audio_file in audio_files:
+                files.append(
+                    ('files', (audio_file.name, open(audio_file, 'rb'), 'audio/wav'))
+                )
+        except Exception as e:
+            # 确保关闭所有已打开的文件
+            for _, file_tuple in files:
+                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
+                    file_tuple[1].close()
+            return {
+                "success": False,
+                "error": f"打开音频文件失败: {str(e)}",
+                "error_code": "FILE_OPEN_ERROR"
+            }
+
+        # 4. 准备表单数据
+        data = {
+            "lang": lang
         }
 
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_code": "UNEXPECTED_ERROR"
-        }
+        # 如果提供了 keys，添加到请求中
+        if keys and keys.strip():
+            data["keys"] = keys.strip()
 
+        # 5. 调用 ASR API
+        try:
+            response = requests.post(
+                ASR_API_URL,
+                files=files,
+                data=data,
+                timeout=300  # 5分钟超时（处理较长音频）
+            )
 
-def count_stream(count: int = 10, interval: float = 0.5) -> Iterator[Dict[str, Any]]:
-    """
-    流式计数器（演示流式函数的实现）
+            # 关闭所有文件句柄
+            for _, file_tuple in files:
+                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
+                    file_tuple[1].close()
 
-    这是一个流式函数示例，展示如何使用生成器实现实时输出。
-    适用于需要实时反馈的场景，如进度报告、实时数据处理等。
-
-    🌊 流式函数特点：
-    - 使用 Iterator[Dict] 作为返回类型
-    - 使用 yield 逐步返回结果
-    - 在 manifest 中设置 "streaming": true
-    - 客户端通过 SSE (Server-Sent Events) 接收实时数据
-
-    Args:
-        count: 计数总数，默认 10
-        interval: 每次计数的间隔秒数，默认 0.5
-
-    Yields:
-        dict: SSE 事件数据，包含以下字段：
-            - type: 事件类型 ("start" | "progress" | "done" | "error")
-            - data: 事件数据
-            - metadata: 可选的元数据
-
-    Examples:
-        >>> for event in count_stream(count=5, interval=0.1):
-        ...     print(event)
-        {"type": "start", "data": {"total": 5}}
-        {"type": "progress", "data": {"current": 1, "total": 5, "percentage": 20}}
-        {"type": "progress", "data": {"current": 2, "total": 5, "percentage": 40}}
-        ...
-        {"type": "done", "data": {"total": 5, "completed": True}}
-    """
-    try:
-        # 参数验证
-        if count <= 0:
-            yield {
-                "type": "error",
-                "data": "count 必须大于 0",
-                "error_code": "INVALID_COUNT"
-            }
-            return
-
-        if interval < 0:
-            yield {
-                "type": "error",
-                "data": "interval 不能为负数",
-                "error_code": "INVALID_INTERVAL"
-            }
-            return
-
-        # Step 1: 发送开始事件
-        yield {
-            "type": "start",
-            "data": {
-                "total": count,
-                "interval": interval
-            }
-        }
-
-        # Step 2: 逐步计数并发送进度事件
-        for i in range(1, count + 1):
-            time.sleep(interval)
-
-            percentage = int((i / count) * 100)
-
-            yield {
-                "type": "progress",
-                "data": {
-                    "current": i,
-                    "total": count,
-                    "percentage": percentage,
-                    "message": f"正在计数: {i}/{count}"
+            # 检查响应状态
+            if response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"ASR 服务返回错误: HTTP {response.status_code}",
+                    "error_code": "ASR_API_ERROR",
+                    "details": response.text
                 }
+
+            # 解析响应
+            result_data = response.json()
+
+            # 6. 格式化返回结果
+            return {
+                "success": True,
+                "results": result_data,
+                "total_files": len(audio_files),
+                "language": lang,
+                "api_url": ASR_API_URL
             }
 
-        # Step 3: 发送完成事件
-        yield {
-            "type": "done",
-            "data": {
-                "total": count,
-                "completed": True,
-                "message": "计数完成"
+        except requests.exceptions.Timeout:
+            # 关闭文件
+            for _, file_tuple in files:
+                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
+                    file_tuple[1].close()
+            return {
+                "success": False,
+                "error": "ASR 服务请求超时（5分钟）",
+                "error_code": "TIMEOUT"
             }
-        }
+
+        except requests.exceptions.ConnectionError:
+            # 关闭文件
+            for _, file_tuple in files:
+                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
+                    file_tuple[1].close()
+            return {
+                "success": False,
+                "error": f"无法连接到 ASR 服务: {ASR_API_URL}",
+                "error_code": "CONNECTION_ERROR"
+            }
+
+        except requests.exceptions.RequestException as e:
+            # 关闭文件
+            for _, file_tuple in files:
+                if len(file_tuple) > 1 and hasattr(file_tuple[1], 'close'):
+                    file_tuple[1].close()
+            return {
+                "success": False,
+                "error": f"请求 ASR 服务时发生错误: {str(e)}",
+                "error_code": "REQUEST_ERROR"
+            }
+
+        except ValueError as e:
+            return {
+                "success": False,
+                "error": f"解析 ASR 响应失败: {str(e)}",
+                "error_code": "PARSE_ERROR"
+            }
 
     except Exception as e:
-        # 发送错误事件
-        yield {
-            "type": "error",
-            "data": str(e),
+        return {
+            "success": False,
+            "error": str(e),
             "error_code": "UNEXPECTED_ERROR"
         }

@@ -1,7 +1,7 @@
 """
-预制件核心函数测试
+ASR 预制件核心函数测试
 
-测试所有暴露给 AI 的函数，确保它们按预期工作。
+测试语音识别功能，确保函数按预期工作。
 """
 
 import pytest
@@ -9,60 +9,12 @@ from pathlib import Path
 import tempfile
 import shutil
 import os
-from src.main import greet, echo, add_numbers, process_text_file, fetch_weather
+from unittest.mock import Mock, patch, MagicMock
+from src.main import audio_to_text
 
 
-class TestBasicFunctions:
-    """测试基础函数"""
-
-    def test_greet_default(self):
-        """测试默认问候"""
-        result = greet()
-        assert result["success"] is True
-        assert result["message"] == "Hello, World!"
-        assert result["name"] == "World"
-
-    def test_greet_with_name(self):
-        """测试指定名字的问候"""
-        result = greet(name="Alice")
-        assert result["success"] is True
-        assert result["message"] == "Hello, Alice!"
-        assert result["name"] == "Alice"
-
-    def test_greet_invalid(self):
-        """测试无效输入"""
-        result = greet(name="")
-        assert result["success"] is False
-        assert "error_code" in result
-
-    def test_echo(self):
-        """测试回显功能"""
-        result = echo(text="Hello")
-        assert result["success"] is True
-        assert result["echo"] == "Hello"
-        assert result["length"] == 5
-
-    def test_echo_empty(self):
-        """测试空文本"""
-        result = echo(text="")
-        assert result["success"] is False
-        assert result["error_code"] == "EMPTY_TEXT"
-
-    def test_add_numbers(self):
-        """测试数字相加"""
-        result = add_numbers(a=10, b=20)
-        assert result["success"] is True
-        assert result["sum"] == 30
-
-    def test_add_numbers_negative(self):
-        """测试负数"""
-        result = add_numbers(a=-5, b=3)
-        assert result["success"] is True
-        assert result["sum"] == -2
-
-
-class TestFileHandling:
-    """测试文件处理功能"""
+class TestASRFunction:
+    """测试 ASR 音频转文字功能"""
 
     @pytest.fixture
     def workspace(self):
@@ -74,10 +26,6 @@ class TestFileHandling:
         inputs_dir = workspace_path / "data" / "inputs"
         inputs_dir.mkdir(parents=True)
 
-        # 创建测试输入文件
-        test_file = inputs_dir / "test.txt"
-        test_file.write_text("Hello World", encoding="utf-8")
-
         # 切换到工作空间
         original_cwd = os.getcwd()
         os.chdir(workspace_path)
@@ -88,96 +36,168 @@ class TestFileHandling:
         os.chdir(original_cwd)
         shutil.rmtree(temp_dir)
 
-    def test_process_text_file_uppercase(self, workspace):
-        """测试文本转大写（v3.0 架构）"""
-        # v3.0: 不传入文件参数
-        result = process_text_file(operation="uppercase")
+    @pytest.fixture
+    def workspace_with_audio(self, workspace):
+        """创建包含音频文件的工作空间"""
+        inputs_dir = workspace / "data" / "inputs"
 
-        assert result["success"] is True
-        assert result["operation"] == "uppercase"
-        assert result["original_length"] == 11
-        assert result["processed_length"] == 11
-        
-        # v3.0: 返回值不包含文件路径
-        assert "input_file" not in result
-        assert "output_file" not in result
+        # 创建模拟音频文件（空文件，仅用于测试文件扫描）
+        audio_file = inputs_dir / "test.wav"
+        audio_file.write_bytes(b"fake audio data")
 
-        # 验证输出文件存在
-        output_files = list((workspace / "data/outputs").glob("*"))
-        assert len(output_files) == 1
-        assert output_files[0].read_text(encoding="utf-8") == "HELLO WORLD"
+        return workspace
 
-    def test_process_text_file_lowercase(self, workspace):
-        """测试文本转小写（v3.0 架构）"""
-        result = process_text_file(operation="lowercase")
-
-        assert result["success"] is True
-        assert result["operation"] == "lowercase"
-
-        output_files = list((workspace / "data/outputs").glob("*"))
-        assert len(output_files) == 1
-        assert output_files[0].read_text(encoding="utf-8") == "hello world"
-
-    def test_process_text_file_reverse(self, workspace):
-        """测试文本反转（v3.0 架构）"""
-        result = process_text_file(operation="reverse")
-
-        assert result["success"] is True
-        assert result["operation"] == "reverse"
-
-        output_files = list((workspace / "data/outputs").glob("*"))
-        assert len(output_files) == 1
-        assert output_files[0].read_text(encoding="utf-8") == "dlroW olleH"
-
-    def test_process_text_file_no_input(self, workspace):
-        """测试没有输入文件（v3.0 架构）"""
-        # 删除所有输入文件
-        for f in (workspace / "data/inputs").glob("*"):
-            f.unlink()
-        
-        result = process_text_file(operation="uppercase")
+    def test_audio_to_text_invalid_language(self, workspace_with_audio):
+        """测试无效的语言参数"""
+        result = audio_to_text(lang="invalid_lang")
 
         assert result["success"] is False
-        assert result["error_code"] == "NO_INPUT_FILE"
+        assert result["error_code"] == "INVALID_LANGUAGE"
+        assert "不支持的语言" in result["error"]
 
-    def test_process_text_file_invalid_operation(self, workspace):
-        """测试无效操作（v3.0 架构）"""
-        result = process_text_file(operation="invalid")
+    def test_audio_to_text_no_input_dir(self):
+        """测试输入目录不存在"""
+        # 在一个不存在 data/inputs 的目录中运行
+        with tempfile.TemporaryDirectory() as temp_dir:
+            original_cwd = os.getcwd()
+            os.chdir(temp_dir)
+
+            result = audio_to_text()
+
+            os.chdir(original_cwd)
+
+            assert result["success"] is False
+            assert result["error_code"] == "NO_INPUT_DIR"
+
+    def test_audio_to_text_no_audio_files(self, workspace):
+        """测试没有音频文件"""
+        result = audio_to_text()
 
         assert result["success"] is False
-        assert result["error_code"] == "INVALID_OPERATION"
+        assert result["error_code"] == "NO_AUDIO_FILES"
+        assert "未找到音频文件" in result["error"]
 
+    @patch('src.main.requests.post')
+    def test_audio_to_text_success(self, mock_post, workspace_with_audio):
+        """测试成功转录（模拟 API 响应）"""
+        # 模拟 ASR API 响应
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "filename": "test.wav",
+                "text": "这是一段测试音频",
+                "language": "zh"
+            }
+        ]
+        mock_post.return_value = mock_response
 
-class TestSecretsHandling:
-    """测试密钥处理"""
-
-    def test_fetch_weather_success(self, monkeypatch):
-        """测试正常调用（有 API Key）"""
-        # 设置环境变量
-        monkeypatch.setenv("WEATHER_API_KEY", "test-api-key")
-
-        result = fetch_weather(city="北京")
+        result = audio_to_text(lang="zh")
 
         assert result["success"] is True
-        assert result["city"] == "北京"
-        assert "temperature" in result
-        assert "condition" in result
+        assert "results" in result
+        assert result["total_files"] == 1
+        assert result["language"] == "zh"
+        assert "api_url" in result
 
-    def test_fetch_weather_missing_key(self, monkeypatch):
-        """测试缺少 API Key"""
-        # 确保环境变量不存在
-        monkeypatch.delenv("WEATHER_API_KEY", raising=False)
+    @patch('src.main.requests.post')
+    def test_audio_to_text_with_keys(self, mock_post, workspace_with_audio):
+        """测试指定文件名参数"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mock_post.return_value = mock_response
 
-        result = fetch_weather(city="北京")
+        result = audio_to_text(lang="auto", keys="meeting1")
+
+        assert result["success"] is True
+        # 验证 keys 参数被传递
+        call_args = mock_post.call_args
+        assert call_args[1]["data"]["keys"] == "meeting1"
+
+    @patch('src.main.requests.post')
+    def test_audio_to_text_api_error(self, mock_post, workspace_with_audio):
+        """测试 API 返回错误状态码"""
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        mock_post.return_value = mock_response
+
+        result = audio_to_text()
 
         assert result["success"] is False
-        assert result["error_code"] == "MISSING_API_KEY"
+        assert result["error_code"] == "ASR_API_ERROR"
+        assert "HTTP 500" in result["error"]
 
-    def test_fetch_weather_invalid_city(self, monkeypatch):
-        """测试无效城市"""
-        monkeypatch.setenv("WEATHER_API_KEY", "test-api-key")
+    @patch('src.main.requests.post')
+    def test_audio_to_text_timeout(self, mock_post, workspace_with_audio):
+        """测试请求超时"""
+        import requests
+        mock_post.side_effect = requests.exceptions.Timeout()
 
-        result = fetch_weather(city="")
+        result = audio_to_text()
 
         assert result["success"] is False
-        assert result["error_code"] == "INVALID_CITY"
+        assert result["error_code"] == "TIMEOUT"
+        assert "超时" in result["error"]
+
+    @patch('src.main.requests.post')
+    def test_audio_to_text_connection_error(self, mock_post, workspace_with_audio):
+        """测试连接错误"""
+        import requests
+        mock_post.side_effect = requests.exceptions.ConnectionError()
+
+        result = audio_to_text()
+
+        assert result["success"] is False
+        assert result["error_code"] == "CONNECTION_ERROR"
+        assert "无法连接" in result["error"]
+
+    @patch('src.main.requests.post')
+    def test_audio_to_text_parse_error(self, mock_post, workspace_with_audio):
+        """测试响应解析错误"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_post.return_value = mock_response
+
+        result = audio_to_text()
+
+        assert result["success"] is False
+        assert result["error_code"] == "PARSE_ERROR"
+        assert "解析" in result["error"]
+
+    def test_audio_to_text_multiple_files(self, workspace):
+        """测试多个音频文件"""
+        inputs_dir = workspace / "data" / "inputs"
+
+        # 创建多个模拟音频文件
+        (inputs_dir / "audio1.wav").write_bytes(b"fake audio 1")
+        (inputs_dir / "audio2.mp3").write_bytes(b"fake audio 2")
+        (inputs_dir / "audio3.WAV").write_bytes(b"fake audio 3")
+
+        with patch('src.main.requests.post') as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = []
+            mock_post.return_value = mock_response
+
+            result = audio_to_text()
+
+            assert result["success"] is True
+            assert result["total_files"] == 3
+
+    def test_audio_to_text_valid_languages(self, workspace_with_audio):
+        """测试所有支持的语言参数"""
+        valid_languages = ["auto", "zh", "en", "yue", "ja", "ko", "nospeech"]
+
+        with patch('src.main.requests.post') as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = []
+            mock_post.return_value = mock_response
+
+            for lang in valid_languages:
+                result = audio_to_text(lang=lang)
+                assert result["success"] is True
+                assert result["language"] == lang
